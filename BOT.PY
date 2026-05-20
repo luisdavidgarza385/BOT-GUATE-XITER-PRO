@@ -5,18 +5,16 @@ import json
 import os
 import datetime
 import asyncio
+import random
 from collections import defaultdict
-
-welcome_cache = set()
-
-async def clear_welcome_cache(user_id):
-    await asyncio.sleep(60)
-    welcome_cache.discard(user_id)
 
 # =========================
 # TOKEN
 # =========================
 TOKEN = os.getenv("DISCORD_TOKEN")
+
+if not TOKEN:
+    raise ValueError("❌ No se encontró DISCORD_TOKEN")
 
 # =========================
 # INTENTS
@@ -28,7 +26,10 @@ intents.presences = True
 intents.voice_states = True
 intents.guilds = True
 
-bot = commands.Bot(command_prefix="!", intents=intents)
+bot = commands.Bot(
+    command_prefix="!",
+    intents=intents
+)
 
 # =========================
 # DATA
@@ -37,19 +38,26 @@ FILE = "data.json"
 
 def load():
     try:
-        with open(FILE,"r") as f:
+        with open(FILE, "r") as f:
             data = json.load(f)
 
-        data.setdefault("autoroles", {"user": [], "bot": []})
-        data.setdefault("warns", {})
+        data.setdefault("autoroles", {
+            "user": [],
+            "bot": []
+        })
 
         return data
 
     except:
-        return {"warns": {}, "autoroles": {"user": [], "bot": []}}
+        return {
+            "autoroles": {
+                "user": [],
+                "bot": []
+            }
+        }
 
 def save():
-    with open(FILE,"w") as f:
+    with open(FILE, "w") as f:
         json.dump(data, f, indent=4)
 
 data = load()
@@ -59,23 +67,47 @@ data = load()
 # =========================
 xp = defaultdict(int)
 level = defaultdict(int)
+money = defaultdict(int)
 spam = defaultdict(list)
 join_tracker = []
 
-LOG_CHANNEL_ID = 1500703841518223375
+welcome_cache = set()
+
+# ⚠️ CANAL WELCOME
+LOG_CHANNEL_ID = 1454399890405851198
 
 # =========================
-# STATUS BOT
+# SETTINGS
+# =========================
+settings = {
+    "antilink": True,
+    "antispam": True
+}
+
+# =========================
+# CACHE
+# =========================
+async def clear_welcome_cache(user_id):
+    await asyncio.sleep(60)
+    welcome_cache.discard(user_id)
+
+# =========================
+# STATUS LOOP
 # =========================
 async def status_loop():
+
     await bot.wait_until_ready()
 
     while not bot.is_closed():
 
-        total = sum(g.member_count for g in bot.guilds)
+        total = sum(
+            g.member_count
+            for g in bot.guilds
+        )
 
         online = sum(
-            1 for g in bot.guilds
+            1
+            for g in bot.guilds
             for m in g.members
             if m.status != discord.Status.offline
         )
@@ -94,12 +126,27 @@ async def status_loop():
 # =========================
 @bot.event
 async def on_ready():
-    print(f"BOT ACTIVO {bot.user}")
-    await bot.tree.sync()
-    asyncio.create_task(status_loop())
+
+    print("=" * 40)
+    print(f"✅ BOT ACTIVO: {bot.user}")
+    print("=" * 40)
+
+    try:
+        synced = await bot.tree.sync()
+
+        print(
+            f"✅ Slash Commands: {len(synced)}"
+        )
+
+    except Exception as e:
+        print(f"❌ Error: {e}")
+
+    asyncio.create_task(
+        status_loop()
+    )
 
 # =========================
-# WELCOME + AUTO ROLE (FIXED)
+# MEMBER JOIN
 # =========================
 @bot.event
 async def on_member_join(member):
@@ -108,76 +155,101 @@ async def on_member_join(member):
         return
 
     welcome_cache.add(member.id)
-    asyncio.create_task(clear_welcome_cache(member.id))
 
+    asyncio.create_task(
+        clear_welcome_cache(member.id)
+    )
+
+    # =========================
     # ANTI RAID
+    # =========================
     now = datetime.datetime.utcnow().timestamp()
+
     join_tracker.append(now)
-    join_tracker[:] = [t for t in join_tracker if now - t < 10]
+
+    join_tracker[:] = [
+        t for t in join_tracker
+        if now - t < 10
+    ]
 
     if len(join_tracker) >= 5:
+
         for c in member.guild.text_channels:
+
             try:
-                await c.set_permissions(member.guild.default_role, send_messages=False)
+                await c.set_permissions(
+                    member.guild.default_role,
+                    send_messages=False
+                )
+
             except:
                 pass
 
     # =========================
-    # AUTO ROLE 🔥 ARREGLADO PRO
+    # AUTO ROLE
     # =========================
     tipo = "bot" if member.bot else "user"
-    roles = data["autoroles"].get(tipo, [])
+
+    roles = data["autoroles"].get(
+        tipo,
+        []
+    )
 
     if not isinstance(roles, list):
         roles = [roles]
 
     for role_id in roles:
+
         try:
-            role = discord.utils.get(member.guild.roles, id=int(role_id))
+            role = discord.utils.get(
+                member.guild.roles,
+                id=int(role_id)
+            )
+
             if role:
-                await member.add_roles(role, reason="Autorole system")
+
+                await member.add_roles(
+                    role,
+                    reason="Autorole"
+                )
+
         except:
             pass
 
     # =========================
     # WELCOME
     # =========================
-    ch = member.guild.get_channel(LOG_CHANNEL_ID)
+    ch = member.guild.get_channel(
+        LOG_CHANNEL_ID
+    )
 
     if ch:
+
         embed = discord.Embed(
             title="🔥 BIENVENIDO A GUATE XITER 🔥",
             description=f"""
 👤 {member.mention}
 
-💀 Aquí no jugamos, aquí dominamos
-🚀 Aquí se viene a subir de nivel sin parar
-🏆 Aquí se compite hasta ser leyenda
-⚔️ Aquí se entrena duro o no se sobrevive
-
-🔥 No hay excusas, solo progreso
-💪 Aquí se demuestra quién vale y quién no
-👑 Aquí se forma el verdadero top
-🧠 Estrategia + habilidad = victoria
-
-💀 Si entras, es para ganar
-🚀 Si te quedas, es para crecer
-🏆 Si destacas, es para liderar
-
-⚔️ Solo los activos sobreviven
-🤝 Aquí nadie juega solo, todos somos team
-🔥 Respeto, disciplina y constancia
+💀 Aquí no jugamos
+🚀 Aquí se sube de nivel
+🏆 Aquí se domina
+⚔️ Solo sobreviven los activos
 """,
             color=0xff0000
         )
 
-        embed.set_image(url="https://i.postimg.cc/nV2JGZmr/file-00000000c9ec71f59259d589e645e4e1.png")
-        embed.set_thumbnail(url=member.display_avatar.url)
+        embed.set_thumbnail(
+            url=member.display_avatar.url
+        )
+
+        embed.set_image(
+            url="https://i.postimg.cc/nV2JGZmr/file-00000000c9ec71f59259d589e645e4e1.png"
+        )
 
         await ch.send(embed=embed)
 
 # =========================
-# XP + ANTI SPAM + LINK
+# MESSAGE SYSTEM
 # =========================
 @bot.event
 async def on_message(message):
@@ -187,54 +259,159 @@ async def on_message(message):
 
     uid = str(message.author.id)
 
+    # =========================
+    # XP SYSTEM
+    # =========================
     xp[uid] += 5
-    if xp[uid] % 100 == 0:
+
+    if xp[uid] >= 100:
+
+        xp[uid] = 0
+
         level[uid] += 1
 
-    now = datetime.datetime.utcnow().timestamp()
+        reward = random.randint(50, 150)
 
-    spam[uid].append(now)
-    spam[uid] = [t for t in spam[uid] if now - t < 5]
+        money[uid] += reward
 
-    if len(spam[uid]) > 5:
-        await message.delete()
-        return
+        embed = discord.Embed(
+            title="🏆 LEVEL UP",
+            description=f"""
+🎉 {message.author.mention}
 
-    if "http" in message.content or "discord.gg" in message.content:
-        await message.delete()
+🚀 Nivel: {level[uid]}
+💰 Dinero: {reward}
+""",
+            color=0xff0000
+        )
+
+        embed.set_thumbnail(
+            url=message.author.display_avatar.url
+        )
+
+        await message.channel.send(
+            embed=embed
+        )
+
+    # =========================
+    # ANTI SPAM
+    # =========================
+    if settings["antispam"]:
+
+        now = datetime.datetime.utcnow().timestamp()
+
+        spam[uid].append(now)
+
+        spam[uid] = [
+            t for t in spam[uid]
+            if now - t < 5
+        ]
+
+        if len(spam[uid]) > 5:
+
+            try:
+                await message.delete()
+
+                embed = discord.Embed(
+                    title="🛡 ANTI SPAM",
+                    description=f"{message.author.mention} spam detectado",
+                    color=0xff0000
+                )
+
+                embed.set_image(
+                    url="https://media.tenor.com/7B8wG8-6hSAAAAAC/anime.gif"
+                )
+
+                await message.channel.send(
+                    embed=embed
+                )
+
+            except:
+                pass
+
+            return
+
+    # =========================
+    # ANTI LINK
+    # =========================
+    if settings["antilink"]:
+
+        if (
+            "http" in message.content.lower()
+            or
+            "discord.gg" in message.content.lower()
+        ):
+
+            try:
+                await message.delete()
+
+                embed = discord.Embed(
+                    title="🚫 LINK BLOQUEADO",
+                    description=f"{message.author.mention} links no permitidos",
+                    color=0xff0000
+                )
+
+                embed.set_image(
+                    url="https://media.tenor.com/jhJ2aXhD6wAAAAAC/anime-ban.gif"
+                )
+
+                await message.channel.send(
+                    embed=embed
+                )
+
+            except:
+                pass
+
+            return
+
+    # =========================
+    # ANTI NSFW
+    # =========================
+    nsfw_words = [
+        "porn",
+        "xxx",
+        "nsfw",
+        "hentai"
+    ]
+
+    if any(
+        word in message.content.lower()
+        for word in nsfw_words
+    ):
+
+        try:
+            await message.delete()
+
+            embed = discord.Embed(
+                title="📸 NSFW BLOQUEADO",
+                description=f"{message.author.mention} contenido prohibido",
+                color=0xff0000
+            )
+
+            embed.set_image(
+                url="https://media.tenor.com/qDEZGcFwVasAAAAC/anime-ban.gif"
+            )
+
+            await message.channel.send(
+                embed=embed
+            )
+
+        except:
+            pass
+
         return
 
     await bot.process_commands(message)
 
 # =========================
-# CLEAR
+# PING
 # =========================
-@bot.tree.command(name="clear")
-@app_commands.checks.has_permissions(manage_messages=True)
-async def clear(interaction: discord.Interaction, amount: int):
-    await interaction.channel.purge(limit=amount)
-    await interaction.response.send_message(f"🧹 {amount} mensajes borrados", ephemeral=True)
+@bot.tree.command(name="ping")
+async def ping(interaction):
 
-# =========================
-# BAN / KICK / TIMEOUT
-# =========================
-@bot.tree.command(name="ban")
-@app_commands.checks.has_permissions(ban_members=True)
-async def ban(interaction, member: discord.Member):
-    await member.ban()
-    await interaction.response.send_message("🔨 baneado")
-
-@bot.tree.command(name="kick")
-@app_commands.checks.has_permissions(kick_members=True)
-async def kick(interaction, member: discord.Member):
-    await member.kick()
-    await interaction.response.send_message("👢 kick")
-
-@bot.tree.command(name="timeout")
-@app_commands.checks.has_permissions(moderate_members=True)
-async def timeout(interaction, member: discord.Member, minutes: int):
-    await member.timeout(datetime.timedelta(minutes=minutes))
-    await interaction.response.send_message("⏳ timeout")
+    await interaction.response.send_message(
+        f"🏓 {round(bot.latency * 1000)}ms"
+    )
 
 # =========================
 # INFO
@@ -244,117 +421,361 @@ async def info(interaction):
 
     g = interaction.guild
 
-    online = sum(1 for m in g.members if m.status != discord.Status.offline)
-    bots = sum(m.bot for m in g.members)
+    online = sum(
+        1
+        for m in g.members
+        if m.status != discord.Status.offline
+    )
 
-    embed = discord.Embed(title="📊 INFO SERVER", color=0xff0000)
-    embed.add_field(name="👥 Miembros", value=g.member_count)
-    embed.add_field(name="🟢 Online", value=online)
-    embed.add_field(name="🤖 Bots", value=bots)
-    embed.add_field(name="🚀 Boosts", value=g.premium_subscription_count)
+    embed = discord.Embed(
+        title="📊 INFO SERVER",
+        color=0xff0000
+    )
 
-    await interaction.response.send_message(embed=embed)
+    embed.add_field(
+        name="👥 Miembros",
+        value=g.member_count
+    )
 
-# =========================
-# ONLINE
-# =========================
-@bot.tree.command(name="online")
-async def online(interaction):
-    online = sum(1 for m in interaction.guild.members if m.status != discord.Status.offline)
-    await interaction.response.send_message(f"🟢 Online: {online}")
+    embed.add_field(
+        name="🟢 Online",
+        value=online
+    )
 
-# =========================
-# MEMBERS
-# =========================
-@bot.tree.command(name="members")
-async def members(interaction):
-    await interaction.response.send_message(f"👥 {interaction.guild.member_count}")
+    embed.add_field(
+        name="🚀 Boosts",
+        value=g.premium_subscription_count
+    )
 
-# =========================
-# BOOSTS
-# =========================
-@bot.tree.command(name="boosts")
-async def boosts(interaction):
-    await interaction.response.send_message(f"🚀 {interaction.guild.premium_subscription_count}")
+    await interaction.response.send_message(
+        embed=embed
+    )
 
 # =========================
-# PING
+# RANK
 # =========================
-@bot.tree.command(name="ping")
-async def ping(interaction):
-    await interaction.response.send_message(f"🏓 {round(bot.latency*1000)}ms")
-
-# =========================
-# USERINFO
-# =========================
-@bot.tree.command(name="userinfo")
-async def userinfo(interaction, member: discord.Member=None):
+@bot.tree.command(name="rank")
+async def rank(
+    interaction,
+    member: discord.Member = None
+):
 
     member = member or interaction.user
 
-    embed = discord.Embed(title="USER INFO")
-    embed.add_field(name="ID", value=member.id)
-    embed.add_field(name="Creado", value=member.created_at)
+    uid = str(member.id)
 
-    await interaction.response.send_message(embed=embed)
+    embed = discord.Embed(
+        title="🏆 RANK",
+        color=0xff0000
+    )
 
-# =========================
-# AVATAR
-# =========================
-@bot.tree.command(name="avatar")
-async def avatar(interaction, member: discord.Member=None):
+    embed.add_field(
+        name="Nivel",
+        value=level[uid]
+    )
 
-    member = member or interaction.user
+    embed.add_field(
+        name="XP",
+        value=xp[uid]
+    )
 
-    embed = discord.Embed()
-    embed.set_image(url=member.display_avatar.url)
+    embed.add_field(
+        name="Dinero",
+        value=money[uid]
+    )
 
-    await interaction.response.send_message(embed=embed)
+    embed.set_thumbnail(
+        url=member.display_avatar.url
+    )
 
-# =========================
-# SERVER BANNER
-# =========================
-@bot.tree.command(name="guildbanner")
-async def guildbanner(interaction):
-
-    g = interaction.guild
-
-    if not g.banner:
-        return await interaction.response.send_message("sin banner")
-
-    embed = discord.Embed()
-    embed.set_image(url=g.banner.url)
-
-    await interaction.response.send_message(embed=embed)
+    await interaction.response.send_message(
+        embed=embed
+    )
 
 # =========================
-# USER BANNER
+# LEADERBOARD
 # =========================
-@bot.tree.command(name="banner")
-async def banner(interaction, member: discord.Member=None):
+@bot.tree.command(name="leaderboard")
+async def leaderboard(interaction):
 
-    member = member or interaction.user
-    user = await bot.fetch_user(member.id)
+    top = sorted(
+        level.items(),
+        key=lambda x: x[1],
+        reverse=True
+    )[:10]
 
-    if not user.banner:
-        return await interaction.response.send_message("sin banner")
+    desc = ""
 
-    embed = discord.Embed()
-    embed.set_image(url=user.banner.url)
+    for i, user in enumerate(top, start=1):
 
-    await interaction.response.send_message(embed=embed)
+        member = interaction.guild.get_member(
+            int(user[0])
+        )
+
+        if member:
+
+            desc += (
+                f"#{i} 👑 "
+                f"{member.mention} "
+                f"- Nivel {user[1]}\n"
+            )
+
+    embed = discord.Embed(
+        title="🏆 TOP LEVELS",
+        description=desc,
+        color=0xff0000
+    )
+
+    await interaction.response.send_message(
+        embed=embed
+    )
 
 # =========================
-# AUTOROLE FIX
+# BALANCE
+# =========================
+@bot.tree.command(name="balance")
+async def balance(interaction):
+
+    uid = str(interaction.user.id)
+
+    await interaction.response.send_message(
+        f"💰 Dinero: {money[uid]}"
+    )
+
+# =========================
+# WORK
+# =========================
+@bot.tree.command(name="work")
+async def work(interaction):
+
+    uid = str(interaction.user.id)
+
+    amount = random.randint(100, 500)
+
+    money[uid] += amount
+
+    await interaction.response.send_message(
+        f"💵 Ganaste {amount}"
+    )
+
+# =========================
+# CLEAR
+# =========================
+@bot.tree.command(name="clear")
+@app_commands.checks.has_permissions(
+    manage_messages=True
+)
+async def clear(
+    interaction,
+    amount: int
+):
+
+    await interaction.channel.purge(
+        limit=amount
+    )
+
+    await interaction.response.send_message(
+        f"🧹 {amount} mensajes borrados",
+        ephemeral=True
+    )
+
+# =========================
+# BAN
+# =========================
+@bot.tree.command(name="ban")
+@app_commands.checks.has_permissions(
+    ban_members=True
+)
+async def ban(
+    interaction,
+    member: discord.Member
+):
+
+    await member.ban()
+
+    await interaction.response.send_message(
+        f"🔨 {member} baneado"
+    )
+
+# =========================
+# KICK
+# =========================
+@bot.tree.command(name="kick")
+@app_commands.checks.has_permissions(
+    kick_members=True
+)
+async def kick(
+    interaction,
+    member: discord.Member
+):
+
+    await member.kick()
+
+    await interaction.response.send_message(
+        f"👢 {member} kickeado"
+    )
+
+# =========================
+# TIMEOUT
+# =========================
+@bot.tree.command(name="timeout")
+@app_commands.checks.has_permissions(
+    moderate_members=True
+)
+async def timeout(
+    interaction,
+    member: discord.Member,
+    minutes: int
+):
+
+    until = (
+        discord.utils.utcnow()
+        +
+        datetime.timedelta(minutes=minutes)
+    )
+
+    await member.timeout(
+        until
+    )
+
+    await interaction.response.send_message(
+        f"⏳ {member.mention} timeout {minutes}m"
+    )
+
+# =========================
+# VERIFY
+# =========================
+@bot.tree.command(name="verify")
+async def verify(interaction):
+
+    role = discord.utils.get(
+        interaction.guild.roles,
+        name="Verified"
+    )
+
+    if not role:
+
+        return await interaction.response.send_message(
+            "❌ crea un rol llamado Verified"
+        )
+
+    await interaction.user.add_roles(role)
+
+    await interaction.response.send_message(
+        "✅ Verificado"
+    )
+
+# =========================
+# TICKET
+# =========================
+@bot.tree.command(name="ticket")
+async def ticket(interaction):
+
+    overwrites = {
+
+        interaction.guild.default_role:
+        discord.PermissionOverwrite(
+            read_messages=False
+        ),
+
+        interaction.user:
+        discord.PermissionOverwrite(
+            read_messages=True,
+            send_messages=True
+        )
+    }
+
+    channel = await interaction.guild.create_text_channel(
+        name=f"ticket-{interaction.user.name}",
+        overwrites=overwrites
+    )
+
+    await channel.send(
+        f"🎫 Ticket creado para {interaction.user.mention}"
+    )
+
+    await interaction.response.send_message(
+        f"✅ {channel.mention}",
+        ephemeral=True
+    )
+
+# =========================
+# ANTI LINK
+# =========================
+@bot.tree.command(name="antilink")
+@app_commands.checks.has_permissions(
+    administrator=True
+)
+async def antilink(
+    interaction,
+    estado: str
+):
+
+    estado = estado.lower()
+
+    if estado not in ["on", "off"]:
+
+        return await interaction.response.send_message(
+            "usa: on/off",
+            ephemeral=True
+        )
+
+    settings["antilink"] = (
+        estado == "on"
+    )
+
+    await interaction.response.send_message(
+        f"🔗 AntiLink {estado}"
+    )
+
+# =========================
+# ANTI SPAM
+# =========================
+@bot.tree.command(name="antispam")
+@app_commands.checks.has_permissions(
+    administrator=True
+)
+async def antispam(
+    interaction,
+    estado: str
+):
+
+    estado = estado.lower()
+
+    if estado not in ["on", "off"]:
+
+        return await interaction.response.send_message(
+            "usa: on/off",
+            ephemeral=True
+        )
+
+    settings["antispam"] = (
+        estado == "on"
+    )
+
+    await interaction.response.send_message(
+        f"🛡 AntiSpam {estado}"
+    )
+
+# =========================
+# AUTOROLE
 # =========================
 class RoleSelect(discord.ui.Select):
+
     def __init__(self, roles, tipo):
 
         self.tipo = tipo
 
         options = [
-            discord.SelectOption(label=r.name, value=str(r.id))
-            for r in roles if r.name != "@everyone"
+
+            discord.SelectOption(
+                label=r.name,
+                value=str(r.id)
+            )
+
+            for r in roles
+            if r.name != "@everyone"
+
         ][:25]
 
         super().__init__(
@@ -364,27 +785,53 @@ class RoleSelect(discord.ui.Select):
             max_values=len(options)
         )
 
-    async def callback(self, interaction: discord.Interaction):
+    async def callback(
+        self,
+        interaction
+    ):
 
-        data["autoroles"][self.tipo] = [int(v) for v in self.values]
+        data["autoroles"][self.tipo] = [
+
+            int(v)
+            for v in self.values
+        ]
+
         save()
 
-        await interaction.response.send_message("✔ Autoroles guardados", ephemeral=True)
+        await interaction.response.send_message(
+            "✅ Autoroles guardados",
+            ephemeral=True
+        )
 
 class RoleView(discord.ui.View):
+
     def __init__(self, roles, tipo):
+
         super().__init__(timeout=60)
-        self.add_item(RoleSelect(roles, tipo))
+
+        self.add_item(
+            RoleSelect(roles, tipo)
+        )
 
 @bot.tree.command(name="autorole_add")
-async def autorole_add(interaction: discord.Interaction, tipo: str):
+async def autorole_add(
+    interaction,
+    tipo: str
+):
 
-    if tipo not in ["user","bot"]:
-        return await interaction.response.send_message("user o bot", ephemeral=True)
+    if tipo not in ["user", "bot"]:
+
+        return await interaction.response.send_message(
+            "❌ usa user o bot",
+            ephemeral=True
+        )
 
     await interaction.response.send_message(
-        "Selecciona roles:",
-        view=RoleView(interaction.guild.roles, tipo),
+        "Selecciona roles",
+        view=RoleView(
+            interaction.guild.roles,
+            tipo
+        ),
         ephemeral=True
     )
 
